@@ -11,7 +11,11 @@ void writeReg(u8 rd, s8 imm);
 
 void checkAluFlags(int sum);
 
-void putPixel(u8 x, u8 y, u8 rgb);
+void loadProgram(const s8* program, u16 size);
+
+
+void step();
+void loop();
 
 void nope();
 void add(u8 rd, u8 rs1, u8 rs2);
@@ -19,14 +23,25 @@ void addc(u8 rd, u8 rs1, u8 rs2);
 void subc(u8 rd, u8 rs1, u8 rs2);
 void addi(u8 rd, u8 rs1, s8 imm);
 void subi(u8 rd, u8 rs1, s8 imm);
-void jump(u8 cond, u16 addr);
-void call(u16 addr);
-void ret();
+void jump(u8 cond, u8 rhi, u8 rlo);
 void ldi(u8 rd, s8 imm);
-void ld(u8 rd, u16 addr);
-void st(u8 rs1, u16 addr);
-//void str(u8 rs1, u8 rd, u8 off);
+void ld(u8 rd, u8 rhi, u8 rlo);
+void st(u8 rs1, u8 rhi, u8 rlo);
+void screen(u8 rx, u8 ry, u8 rgb);
+void ldso(u8 rd, u8 offset);
+void stso(u8 rs1, u8 offset);
+void and(u8 rd, u8 rs1, u8 rs2);
+void or(u8 rd, u8 rs1, u8 rs2);
+void subopcodes(u16 instruction);
+
 void push(u8 rs1);
 void pop(u8 rd);
-void screen(u8 rx, u8 ry, u8 rgb);
 void sec();
+void ret();
+void call(u8 rhi, u8 rlo);
+void shl(u8 rd, u8 rs1);
+void shr(u8 rd, u8 rs1);
+void not(u8 rd, u8 rs1);
+void cls(u8 rgb);
+void stop();
+
