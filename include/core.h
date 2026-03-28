@@ -17,6 +17,7 @@ void writeReg(u8 rd, s8 imm);
 void checkAluFlags(int sum);
 
 void loadProgram(const s8* program, u16 size);
+void loadStaticData(const s8* data, u16 size, u16 baseAddr);
 
 
 void step();

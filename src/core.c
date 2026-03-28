@@ -108,6 +108,14 @@ void loadProgram(const s8* program, u16 size)
     }
 }
 
+void loadStaticData(const s8* data, u16 size, u16 baseAddr)
+{
+    for (u16 i=0;i<size;i++)
+    {
+        writeRam(baseAddr + i, data[i]);
+    }
+}
+
 void step()
 {
     u16 highByte = (u8)readRam(programCounter);

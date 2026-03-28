@@ -5,6 +5,7 @@
 
 #define SCREEN_WIDTH  256
 #define SCREEN_HEIGHT 256
+#define SCREEN_SCALE 3
 
 void gfxInit(void);
 void gfxClose(void);

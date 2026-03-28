@@ -12,10 +12,9 @@ static Color rgb3ToColor(unsigned char rgb) {
 }
 
 void gfxInit(void) {
-    SetTraceLogLevel(LOG_WARNING);
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CPU Emulator");
-    ClearWindowState(FLAG_WINDOW_RESIZABLE);
-    SetTargetFPS(60);
+    SetTraceLogLevel(LOG_ERROR);
+    InitWindow(SCREEN_WIDTH * SCREEN_SCALE, SCREEN_HEIGHT * SCREEN_SCALE, "CPU Emulator");
+    SetTargetFPS(0);
     
     for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
         screenBuffer[i] = (Color){0, 0, 0, 255};
@@ -55,8 +54,15 @@ void clearScreen(unsigned char rgb) {
 void render(void) {
     if (!initialized) return;
     
+    BeginDrawing();
+    ClearBackground(BLACK);
     UpdateTexture(screenTexture, screenBuffer);
-    DrawTexture(screenTexture, 0, 0, WHITE);
+    
+    Rectangle source = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
+    Rectangle dest = {0, 0, SCREEN_WIDTH * SCREEN_SCALE, SCREEN_HEIGHT * SCREEN_SCALE};
+    DrawTexturePro(screenTexture, source, dest, (Vector2){0, 0}, 0.0f, WHITE);
+    
+    EndDrawing();
 }
 
 int windowShouldClose(void) {
