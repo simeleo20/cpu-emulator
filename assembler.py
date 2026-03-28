@@ -21,6 +21,22 @@ class Assembler:
             "COND_OVERFLOW": 1,
             "COND_NEGATIVE": 2,
             "COND_ZERO": 3,
+            "COND_POSITIVE": 4,
+            "COND_NOT_ZERO": 5,
+            "COND_NOT_NEGATIVE": 6,
+            "COND_NOT_CARRY": 7,
+            "COND_CARRY": 8,
+            "COND_LTE": 9,
+            "=": 3,
+            "!=": 5,
+            ">": 4,
+            ">=": 6,
+            "<": 2,
+            "<=": 9,
+            "=0": 3,
+            "!=0": 5,
+            ">0": 4,
+            "<0": 2,
         }
         self.opcodes = {
             "nop": (0x0, 0), "add": (0x1, 3), "addc": (0x2, 3), "subc": (0x3, 3),
@@ -126,6 +142,15 @@ class Assembler:
             if label not in self.labels:
                 raise AssemblerError(f"Label '{label}' non definita per LO()")
             return self.labels[label] & 0xFF
+        if s_upper.startswith("OF("):
+            if not s_upper.endswith(")"):
+                raise AssemblerError(f"OF() richiede parentesi di chiusura: {s}")
+            label = s[3:-1]
+            if label not in self.labels:
+                raise AssemblerError(f"Label '{label}' non definita per OF()")
+            return (self.labels[label] - self.code_address) // 2
+        if s_upper in self.defines:
+            return self.defines[s_upper]
         try:
             return int(s, 0)
         except ValueError:
@@ -241,6 +266,7 @@ class Assembler:
                         raise AssemblerError(f"Istruzioni non ammesse nella sezione .data alla riga {line_num}")
         
         for addr, line, line_num in raw_lines:
+            self.code_address = addr + 2  # OF() calcola da PC+2 (istruzione successiva)
             parts = re.split(r'[,\s]+', line)
             parts = [p for p in parts if p]
             mnemonic = parts[0].lower()
@@ -254,18 +280,29 @@ class Assembler:
                 
             elif mnemonic in self.opcodes:
                 op, expected_args = self.opcodes[mnemonic]
-                if len(args) != expected_args:
-                    raise AssemblerError(f"'{mnemonic}' richiede {expected_args} argomenti, trovati {len(args)} alla riga {line_num}")
                 
-                if mnemonic in ["ldi", "ldso", "stso"]:
+                if mnemonic == "jump":
+                    if len(args) == 1:
+                        inst = (op << 12) | (self.imm(args[0]) << 8)
+                    elif len(args) == 2:
+                        inst = (op << 12) | (self.imm(args[0]) << 8) | (self.imm(args[1]) & 0xFF)
+                    else:
+                        raise AssemblerError(f"'jump' richiede 1 o 2 argomenti")
+                elif mnemonic in ["ldi", "ldso", "stso"]:
+                    if len(args) != 2:
+                        raise AssemblerError(f"'{mnemonic}' richiede 2 argomenti, trovati {len(args)} alla riga {line_num}")
                     inst = (op << 12) | (self.reg(args[0]) << 8) | (self.imm(args[1]) & 0xFF)
                 elif mnemonic in ["addi", "subi"]:
+                    if len(args) != 3:
+                        raise AssemblerError(f"'{mnemonic}' richiede 3 argomenti, trovati {len(args)} alla riga {line_num}")
                     inst = (op << 12) | (self.reg(args[0]) << 8) | (self.reg(args[1]) << 4) | (self.imm(args[2]) & 0xFF)
-                elif mnemonic == "jump":
-                    inst = (op << 12) | (self.imm(args[0]) << 8) | (self.reg(args[1]) << 4) | self.reg(args[2])
                 elif mnemonic == "screen":
+                    if len(args) != 3:
+                        raise AssemblerError(f"'{mnemonic}' richiede 3 argomenti, trovati {len(args)} alla riga {line_num}")
                     inst = (op << 12) | (self.reg(args[0]) << 8) | (self.reg(args[1]) << 4) | (self.imm(args[2]) & 0xFF)
-                elif len(args) == 3:
+                else:
+                    if len(args) != expected_args:
+                        raise AssemblerError(f"'{mnemonic}' richiede {expected_args} argomenti, trovati {len(args)} alla riga {line_num}")
                     inst = (op << 12) | (self.reg(args[0]) << 8) | (self.reg(args[1]) << 4) | self.reg(args[2])
             
             elif mnemonic in self.subopcodes:

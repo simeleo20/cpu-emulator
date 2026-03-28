@@ -29,7 +29,7 @@ void addc(u8 rd, u8 rs1, u8 rs2);
 void subc(u8 rd, u8 rs1, u8 rs2);
 void addi(u8 rd, u8 rs1, s8 imm);
 void subi(u8 rd, u8 rs1, s8 imm);
-void jump(u8 cond, u8 rhi, u8 rlo);
+void jump(u8 cond, s8 offset); // 7 bit di offset, 5 bit di condizione
 void ldi(u8 rd, s8 imm);
 void ld(u8 rd, u8 rhi, u8 rlo);
 void st(u8 rs1, u8 rhi, u8 rlo);

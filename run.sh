@@ -8,7 +8,11 @@ PROGRAM_FILE="$SCRIPT_DIR/src/program.c"
 BUILD_DIR="$SCRIPT_DIR/build"
 
 echo "=== Assembling $ASM_FILE ==="
-python3 "$SCRIPT_DIR/assembler.py" "$ASM_FILE" > /tmp/asm_output.txt
+python3 "$SCRIPT_DIR/assembler.py" "$ASM_FILE" > /tmp/asm_output.txt 2>&1 || {
+    echo "ERRORE durante l'assemblaggio:"
+    cat /tmp/asm_output.txt
+    exit 1
+}
 
 echo "=== Labels ==="
 grep "^// Labels" /tmp/asm_output.txt || true

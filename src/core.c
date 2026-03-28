@@ -132,7 +132,7 @@ void step()
         case 0x3: subc((instruction >> 8) & 0xf, (instruction >> 4) & 0xf, instruction & 0xf); break;
         case 0x4: addi((instruction >> 8) & 0xf, (instruction >> 4) & 0xf, instruction & 0xf); break;
         case 0x5: subi((instruction >> 8) & 0xf, (instruction >> 4) & 0xf, instruction & 0xf); break;
-        case 0x6: jump((instruction >> 8) & 0xf, (instruction >> 4) & 0xf, instruction & 0xf); break;
+        case 0x6: jump((instruction >> 8) & 0xf, (instruction) & 0xff); break;
         case 0x7: ldi((instruction >> 8) & 0xf, instruction & 0xff); break;
         case 0x8: ld((instruction >> 8) & 0xf, (instruction >>4) & 0xf, instruction&0xf); break;
         case 0x9: st((instruction >>8) & 0xf, (instruction>>4)&0xf, instruction&0xf); break;
@@ -227,19 +227,43 @@ void subi(u8 rd, u8 rs1, s8 imm)
     checkAluFlags(sum);
     writeReg(rd,(s8)sum);
 }
-void jump(u8 cond, u8 rhi, u8 rlo)
+
+// se offset è zero salto ad indirizzo contenuto in r14 e r15,
+// altrimenti salto a pc+offset
+void jump(u8 cond, s8 offset)
 {
     if (
-        cond == 0
+        (cond == 0)
         ||
-        cond == 1 && overflow==1
+        (cond == 1 && overflow==1)
         ||
-        cond == 2 && negative==1
+        (cond == 2 && negative==1) // <0
         ||
-        cond == 3 && zero==1
+        (cond == 3 && zero==1) // ==0
+        ||
+        (cond == 4 && negative==0 && zero==0) // >0
+        ||
+        (cond == 5 && zero==0) // !=0
+        ||
+        (cond == 6 && negative==0) // >=0
+        ||
+        (cond == 7 && carry==0) // NC
+        ||
+        (cond == 8 && carry==1) // C
+        ||
+        (cond == 9 && (negative==1 || zero==1)) // <=0
+
     )
     {   
-        u16 addr = (readReg(rhi) << 8) | readReg(rlo);
+        u16 addr;
+        if (offset != 0) {
+            s16 signedOffset = (s16)offset; // Estendi a 16 bit mantenendo il segno
+            addr = programCounter + (signedOffset * 2); // Moltiplica per 2 perché ogni istruzione è di 2 byte
+        }
+        else{
+            addr = (readReg(14) << 8) | readReg(15);
+        }
+
         programCounter = addr;
     }
 }
@@ -295,7 +319,7 @@ void pop(u8 rd)
 
 void screen(u8 rx, u8 ry, u8 rgb)
 {
-    putPixel(readReg(rx),readReg(ry),rgb);
+    putPixel((u8)readReg(rx),(u8)readReg(ry),rgb);
 }
 
 void sec()
