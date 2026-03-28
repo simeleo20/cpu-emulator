@@ -12,8 +12,10 @@ static Color rgb3ToColor(unsigned char rgb) {
 }
 
 void gfxInit(void) {
+    SetTraceLogLevel(LOG_WARNING);
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "CPU Emulator");
     ClearWindowState(FLAG_WINDOW_RESIZABLE);
+    SetTargetFPS(60);
     
     for (int i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
         screenBuffer[i] = (Color){0, 0, 0, 255};

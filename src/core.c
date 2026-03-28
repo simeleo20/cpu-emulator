@@ -68,6 +68,32 @@ s8 readReg(u8 rs1)
     else if (rs1>15) printf("Errore registro inesistente troppo alto");
     return registerFile[rs1];
 }
+
+s8* getRegisters(void) {
+    return registerFile;
+}
+
+u8* getFlags(void) {
+    static u8 flags[4];
+    flags[0] = overflow;
+    flags[1] = negative;
+    flags[2] = zero;
+    flags[3] = carry;
+    return flags;
+}
+
+u16* getProgramCounter(void) {
+    return &programCounter;
+}
+
+u8* getStackPointer(void) {
+    return &stackPointer;
+}
+
+s8* getRam(void) {
+    return ram;
+}
+
 void writeReg(u8 rd, s8 imm)
 {
     if (rd == 0) return;

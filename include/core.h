@@ -7,6 +7,11 @@
 void printRF();
 
 s8 readReg(u8 rs1);
+s8* getRegisters(void);
+u8* getFlags(void);
+u16* getProgramCounter(void);
+u8* getStackPointer(void);
+s8* getRam(void);
 void writeReg(u8 rd, s8 imm);
 
 void checkAluFlags(int sum);
