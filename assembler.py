@@ -111,15 +111,16 @@ class Assembler:
     
     def imm(self, s):
         s = s.strip()
-        if s.startswith("HI("):
-            if not s.endswith(")"):
+        s_upper = s.upper()
+        if s_upper.startswith("HI("):
+            if not s_upper.endswith(")"):
                 raise AssemblerError(f"HI() richiede parentesi di chiusura: {s}")
             label = s[3:-1]
             if label not in self.labels:
                 raise AssemblerError(f"Label '{label}' non definita per HI()")
             return (self.labels[label] >> 8) & 0xFF
-        if s.startswith("LO("):
-            if not s.endswith(")"):
+        if s_upper.startswith("LO("):
+            if not s_upper.endswith(")"):
                 raise AssemblerError(f"LO() richiede parentesi di chiusura: {s}")
             label = s[3:-1]
             if label not in self.labels:

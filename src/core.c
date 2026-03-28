@@ -263,7 +263,6 @@ void ret() {
 }
 void ldi(u8 rd, s8 imm)
 {
-    checkAluFlags(imm);
     writeReg(rd, imm);
 }
 
