@@ -40,6 +40,8 @@ class CodeGen:
         self.function_table = FunctionTable()
         self.current_function: Optional[FunctionInfo] = None
         self.label_manager = LabelManager()
+        self.variables_needing_reload: Set[str] = set()
+        self.after_call: bool = False
     
     def emit(self, line: str = ""):
         self.output.append(line)
@@ -103,14 +105,17 @@ class CodeGen:
         
         for i, param in enumerate(node.params):
             symbol = self.symbol_table.define(param)
-            symbol.offset = i * 2
+            symbol.offset = 3 - (i * 2)
         
         local_vars = []
         for stmt in node.body.statements if isinstance(node.body, Compound) else [node.body]:
             if isinstance(stmt, VarDecl):
                 symbol = self.symbol_table.define(stmt.name)
-                symbol.offset = len(node.params) * 2 + len(local_vars) * 2
                 local_vars.append(stmt.name)
+        
+        for i, name in enumerate(local_vars):
+            symbol = self.symbol_table.lookup(name)
+            symbol.offset = 2 + (len(local_vars) - i - 1) * 2
         
         stmts = node.body.statements if isinstance(node.body, Compound) else [node.body]
         has_return = stmts and isinstance(stmts[-1], Return)
@@ -143,7 +148,13 @@ class CodeGen:
         
         if node.value:
             result = self.gen_expr(node.value)
-            self.emit(f"    stso {result}, {symbol.offset}")
+            if result == "r1":
+                self.emit(f"    push r1")
+            elif result == "r2":
+                self.emit(f"    push r2")
+            else:
+                self.emit(f"    add r2, {result}, r0")
+                self.emit(f"    push r2")
     
     def gen_assignment(self, node: Assignment):
         symbol = self.symbol_table.lookup(node.name)
@@ -151,32 +162,69 @@ class CodeGen:
             raise Exception(f"Undefined variable: {node.name}")
         
         result = self.gen_expr(node.value)
-        self.emit(f"    stso {result}, {symbol.offset}")
+        if result == "r1":
+            self.emit(f"    push r1")
+        elif result == "r2":
+            self.emit(f"    push r2")
+        else:
+            self.emit(f"    add r2, {result}, r0")
+            self.emit(f"    push r2")
     
     def gen_return(self, node: Return):
-        result = self.gen_expr(node.value)
-        if result != "r12":
-            self.emit(f"    add r12, {result}, r0")
+        if isinstance(node.value, Number) and node.value.value == 0:
+            self.emit("    ldi r1, 0")
+        else:
+            result = self.gen_expr(node.value)
+            if result != "r1":
+                self.emit(f"    add r1, {result}, r0")
         self.emit("    ret")
     
     def gen_if(self, node: If):
         end_label = self.labels.new_label("endif")
         else_label = self.labels.new_label("else") if node.else_branch else None
         
-        result = self.gen_expr(node.condition)
-        
-        jump_cond = self.get_jump_cond(node.condition)
-        jump_cond = self.invert_cond(jump_cond)
-        
-        if else_label:
-            self.emit(f"    jump {jump_cond}, OF({else_label})")
-            self.gen(node.then_branch)
-            self.emit(f"    jump OF({end_label})")
-            self.emit(f"{else_label}:")
-            self.gen(node.else_branch)
+        if isinstance(node.condition, Var):
+            jump_cond = '!='
+            self.gen_expr(node.condition)
+            
+            if else_label:
+                self.emit(f"    jump {jump_cond}, OF({else_label})")
+                self.gen(node.then_branch)
+                self.emit(f"    jump OF({end_label})")
+                self.emit(f"{else_label}:")
+                self.gen(node.else_branch)
+            else:
+                self.emit(f"    jump {jump_cond}, OF({end_label})")
+                self.gen(node.then_branch)
+        elif isinstance(node.condition, BinaryOp) and node.condition.op == '==' and isinstance(node.condition.right, Number) and node.condition.right.value == 0:
+            var = node.condition.left
+            jump_cond = '!='
+            self.gen_expr(var)
+            
+            if else_label:
+                self.emit(f"    jump {jump_cond}, OF({else_label})")
+                self.gen(node.then_branch)
+                self.emit(f"    jump OF({end_label})")
+                self.emit(f"{else_label}:")
+                self.gen(node.else_branch)
+            else:
+                self.emit(f"    jump {jump_cond}, OF({end_label})")
+                self.gen(node.then_branch)
         else:
-            self.emit(f"    jump {jump_cond}, OF({end_label})")
-            self.gen(node.then_branch)
+            result = self.gen_expr(node.condition)
+            
+            jump_cond = self.get_jump_cond(node.condition)
+            jump_cond = self.invert_cond(jump_cond)
+            
+            if else_label:
+                self.emit(f"    jump {jump_cond}, OF({else_label})")
+                self.gen(node.then_branch)
+                self.emit(f"    jump OF({end_label})")
+                self.emit(f"{else_label}:")
+                self.gen(node.else_branch)
+            else:
+                self.emit(f"    jump {jump_cond}, OF({end_label})")
+                self.gen(node.then_branch)
         
         self.emit(f"{end_label}:")
     
@@ -233,18 +281,33 @@ class CodeGen:
         return "r0"
     
     def load_immediate(self, value: int) -> str:
-        self.emit(f"    ldi r14, {value}")
-        return "r14"
+        self.emit(f"    ldi r2, {value}")
+        return "r2"
     
     def load_var(self, name: str) -> str:
         symbol = self.symbol_table.lookup(name)
         if symbol is None:
             raise Exception(f"Undefined variable: {name}")
         
-        self.emit(f"    ldso r14, {symbol.offset}")
-        return "r14"
+        self.emit(f"    ldso r2, {symbol.offset}")
+        return "r2"
     
     def gen_binary_op(self, node: BinaryOp) -> str:
+        if node.op == '-':
+            left_reg = self.gen_expr(node.left)
+            if isinstance(node.right, Number) and -8 <= node.right.value <= 7:
+                self.emit(f"    subi r3, {left_reg}, {node.right.value}")
+                return "r3"
+            right = self.gen_expr(node.right)
+            self.emit(f"    push {left_reg}")
+            self.emit(f"    push {right}")
+            self.emit(f"    ldi r14, HI(sub)")
+            self.emit(f"    ldi r15, LO(sub)")
+            self.emit(f"    call r14, r15")
+            self.emit(f"    pop r0")
+            self.emit(f"    pop r0")
+            return "r1"
+        
         left = self.gen_expr(node.left)
         
         if node.op == '*':
@@ -252,48 +315,55 @@ class CodeGen:
             right = self.gen_expr(node.right)
             self.emit(f"    push {right}")
             self.emit(f"    push r13")
-            self.emit(f"    ldi r14, hi(mult)")
-            self.emit(f"    ldi r15, lo(mult)")
+            self.emit(f"    ldi r14, HI(mult)")
+            self.emit(f"    ldi r15, LO(mult)")
             self.emit(f"    call r14, r15")
             self.emit(f"    pop r0")
             self.emit(f"    pop r0")
-            return "r12"
+            return "r1"
         elif node.op == '/':
             self.emit(f"    push {left}")
             right = self.gen_expr(node.right)
             self.emit(f"    push {right}")
-            self.emit(f"    ldi r14, hi(div)")
-            self.emit(f"    ldi r15, lo(div)")
+            self.emit(f"    ldi r14, HI(div)")
+            self.emit(f"    ldi r15, LO(div)")
             self.emit(f"    call r14, r15")
             self.emit(f"    pop r0")
             self.emit(f"    pop r0")
-            return "r12"
+            return "r1"
         elif node.op == '%':
             self.emit(f"    push {left}")
             right = self.gen_expr(node.right)
             self.emit(f"    push {right}")
-            self.emit(f"    ldi r14, hi(mod)")
-            self.emit(f"    ldi r15, lo(mod)")
+            self.emit(f"    ldi r14, HI(mod)")
+            self.emit(f"    ldi r15, LO(mod)")
             self.emit(f"    call r14, r15")
             self.emit(f"    pop r0")
             self.emit(f"    pop r0")
-            return "r12"
+            return "r1"
         else:
-            self.emit(f"    push {left}")
-            right = self.gen_expr(node.right)
-            self.emit(f"    pop r15")
-            
-            if node.op == '+':
-                self.emit(f"    add r12, r15, {right}")
-                return "r12"
-            elif node.op == '-':
-                self.emit(f"    sec")
-                self.emit(f"    subc r12, r15, {right}")
-                return "r12"
-            elif node.op in ('==', '!=', '<', '>', '<=', '>='):
-                self.emit(f"    sec")
-                self.emit(f"    subc r14, r15, {right}")
-                return "r14"
+            if left == "r1":
+                right = self.gen_expr(node.right)
+                if node.op == '+':
+                    self.emit(f"    add r1, r1, {right}")
+                    return "r1"
+                elif node.op in ('==', '!=', '<', '>', '<=', '>='):
+                    self.emit(f"    sec")
+                    self.emit(f"    subc r14, r1, {right}")
+                    return "r14"
+            else:
+                if node.op == '+':
+                    self.emit(f"    add r15, {left}, r0")
+                    right = self.gen_expr(node.right)
+                    self.emit(f"    add r1, r15, {right}")
+                    return "r1"
+                elif node.op in ('==', '!=', '<', '>', '<=', '>='):
+                    self.emit(f"    push {left}")
+                    right = self.gen_expr(node.right)
+                    self.emit(f"    pop r15")
+                    self.emit(f"    sec")
+                    self.emit(f"    subc r14, r15, {right}")
+                    return "r14"
         
         return "r0"
     
@@ -352,19 +422,22 @@ class CodeGen:
         if func is None:
             raise Exception(f"Undefined function: {node.name}")
         
-        for arg in node.args:
-            result = self.gen_expr(arg)
-            self.emit(f"    push {result}")
+        for arg in reversed(node.args):
+            if isinstance(arg, Var):
+                self.emit(f"    push r2")
+            else:
+                result = self.gen_expr(arg)
+                self.emit(f"    push {result}")
         
-        self.emit(f"    ldi r14, hi({node.name})")
-        self.emit(f"    ldi r15, lo({node.name})")
+        self.emit(f"    ldi r14, HI({node.name})")
+        self.emit(f"    ldi r15, LO({node.name})")
         self.emit(f"    call r14, r15")
         
         num_args = len(node.args)
         for _ in range(num_args):
             self.emit(f"    pop r0")
         
-        return "r12"
+        return "r1"
     
     def get_jump_cond(self, node: Expr) -> str:
         if isinstance(node, BinaryOp) and node.op in COND_MAP:

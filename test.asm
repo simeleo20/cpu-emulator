@@ -10,7 +10,7 @@ ldi r15, LO(sommar)
 call r14, r15 ;sommar(a)
 pop r0                          ;per ogni push corrisponde un pop
                                 ;per quanto riguarda il passagigio di parametri
-
+push r1                         ;salviamo in res il ret di somamr(a)
 stop
 
 
